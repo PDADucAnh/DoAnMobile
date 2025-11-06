@@ -1,4 +1,4 @@
-import React, {useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -6,62 +6,213 @@ import {
   FlatList,
   Image,
   TouchableOpacity,
+  // Alert,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  GET_CART,
+  UPDATE_CART_QUANTITY,
+  DELETE_CART_PRODUCT,
+  GET_IMG,
+} from "../../../APIService";
 
 export default function CartScreen() {
   const [cart, setCart] = useState<any[]>([]);
   const router = useRouter();
+  const [cartId, setCartId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
+  //=========================fix load cart=============================
+// FILE: (cart)/index.tsx (Của BẠN)
+
+// ... (các import và state)
+
+// [THÊM MỚI] Hàm trợ giúp để tìm số lượng đúng
+function getCorrectQuantity(item: any): number {
+  // 1. Ưu tiên "cartQuantity" (nếu backend có trả)
+  if (typeof item.cartQuantity === "number" && item.cartQuantity > 0) {
+    return Number(item.cartQuantity);
+  }
+  // 2. Ưu tiên "quantityInCart" (nếu backend có trả)
+  if (typeof item.quantityInCart === "number" && item.quantityInCart > 0) {
+    return Number(item.quantityInCart);
+  }
+  // 3. Cuối cùng mới lấy "quantity"
+  if (typeof item.quantity === "number" && item.quantity > 0) {
+    const qty = Number(item.quantity);
+    // Giả sử nếu backend trả về số lượng > 20, đó là hàng tồn kho
+    if (qty > 20) {
+      return 1; // Mặc định là 1 nếu số lượng quá lớn (vd: 98, 11)
+    }
+    return qty; // Trả về số lượng (vd: 10)
+  }
+  // 4. Nếu không tìm thấy gì, mặc định là 1
+  return 1;
+}
+
+// =========================================================
+// BẮT ĐẦU THAY ĐỔI THỨ TỰ
+// =========================================================
+
+// BƯỚC 1: ĐỊNH NGHĨA loadCartFromApi
+const loadCartFromApi = useCallback(async () => {
+  try {
+    const storedCartId = await AsyncStorage.getItem("cart-id");
+    const storedEmail = await AsyncStorage.getItem("user-email");
+
+    if (storedCartId && storedEmail) {
+      setCartId(storedCartId);
+      setUserEmail(storedEmail); 
+
+      const response = await GET_CART(storedEmail, storedCartId);
+
+      // SỬA LỖI SAI GIÁ VÀ MAX QUANTITY
+      const products = (response.data.products || []).map((p: any) => ({
+        ...p,
+        // Ưu tiên specialPrice (132000), nếu không có thì dùng price (150000)
+        price: p.specialPrice ?? p.price,
+        // Sửa lỗi Max Quantity
+        quantity: getCorrectQuantity(p),
+      }));
+
+      setCart(products);
+    } else {
+      setCart([]);
+    }
+  } catch (error) {
+    console.error("Error loading cart from API:", error);
+  }
+}, [setCartId, setCart]); // Thêm dependencies
+
+// BƯỚC 2: SỬ DỤNG useFocusEffect (SAU KHI ĐÃ ĐỊNH NGHĨA HÀM)
 useFocusEffect(
-  React.useCallback(() => {
-    loadCart();
-  }, [])
+  useCallback(() => {
+    loadCartFromApi();
+  }, [loadCartFromApi]) // Thêm dependency
 );
-  const loadCart = async () => {
+
+  //======================================fix increase, decrease, remove item=========================
+  // FILE: (cart)/index.tsx (PHẦN LOGIC ĐÃ SỬA)
+
+  // ... (giữ nguyên phần import và state)
+
+  // [SỬA] Tăng số lượng
+  const increaseQty = async (productId: number) => {
+    if (!cartId) return;
+
+    // 1. Lưu lại giỏ hàng cũ (để rollback nếu API lỗi)
+    const oldCart = [...cart];
+
+    // 2. Cập nhật UI ngay lập tức (Optimistic Update)
+    setCart((prevCart) =>
+      prevCart.map((item) =>
+        item.productId === productId
+          ? { ...item, quantity: Number(item.quantity) + 1 } // Tăng 1
+          : item
+      )
+    );
+
+    // 3. Tìm sản phẩm và gọi API trong nền
+    const itemToUpdate = cart.find((item) => item.productId === productId);
+    if (!itemToUpdate) return;
+
+    const newQty = Number(itemToUpdate.quantity) + 1;
+
     try {
-      const storedCart = await AsyncStorage.getItem("cart");
-      if (storedCart) {
-        setCart(JSON.parse(storedCart));
-      }
+      await UPDATE_CART_QUANTITY(cartId, productId, newQty);
+      // Gọi API thành công: Không cần làm gì, UI đã đúng.
     } catch (error) {
-      console.error("Error loading cart:", error);
+      console.error("Error increasing quantity:", error);
+      // 4. Lỗi: Hoàn tác lại UI về trạng thái cũ
+      setCart(oldCart);
+      // (Nên thêm Alert báo lỗi cho người dùng ở đây)
     }
   };
 
-  const saveCart = async (updatedCart: any[]) => {
-    setCart(updatedCart);
-    await AsyncStorage.setItem("cart", JSON.stringify(updatedCart));
-  };
+  // [SỬA] Giảm số lượng
+  const decreaseQty = async (productId: number) => {
+    if (!cartId) return;
 
-  const increaseQty = (id: string) => {
-    const updated = cart.map((item) =>
-      item.id === id ? { ...item, qty: item.qty + 1 } : item
+    const itemToUpdate = cart.find((item) => item.productId === productId);
+    if (!itemToUpdate) return;
+
+    const newQty = Number(itemToUpdate.quantity) - 1;
+
+    // Nếu giảm xuống 0, thì chuyển sang XÓA
+    if (newQty <= 0) {
+      removeItem(productId); // Tái sử dụng hàm xóa
+      return;
+    }
+
+    // 1. Lưu giỏ hàng cũ
+    const oldCart = [...cart];
+
+    // 2. Cập nhật UI ngay lập tức
+    setCart((prevCart) =>
+      prevCart.map((item) =>
+        item.productId === productId
+          ? { ...item, quantity: newQty } // Gán số lượng mới
+          : item
+      )
     );
-    saveCart(updated);
+
+    // 3. Gọi API trong nền
+    try {
+      await UPDATE_CART_QUANTITY(cartId, productId, newQty);
+    } catch (error) {
+      console.error("Error decreasing quantity:", error);
+      // 4. Lỗi: Hoàn tác
+      setCart(oldCart);
+    }
   };
 
-  const decreaseQty = (id: string) => {
-    const updated = cart.map((item) =>
-      item.id === id && item.qty > 1 ? { ...item, qty: item.qty - 1 } : item
+  // [SỬA] Xóa sản phẩm
+  const removeItem = async (productId: number) => {
+    if (!cartId) return;
+
+    // 1. Lưu giỏ hàng cũ
+    const oldCart = [...cart];
+
+    // 2. Cập nhật UI ngay lập tức
+    setCart((prevCart) =>
+      prevCart.filter((item) => item.productId !== productId)
     );
-    saveCart(updated);
+
+    // 3. Gọi API trong nền
+    try {
+      await DELETE_CART_PRODUCT(cartId, productId);
+    } catch (error) {
+      console.error("Error removing item:", error);
+      // 4. Lỗi: Hoàn tác
+      setCart(oldCart);
+    }
   };
 
-  const removeItem = (id: string) => {
-    const updated = cart.filter((item) => item.id !== id);
-    saveCart(updated);
-  };
-
-  const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+  // ... (giữ nguyên phần render, nhưng cập nhật lại hàm onPress)
+  //==================================================================================================
+  const subtotal = cart.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
   const vat = 0;
-  const shipping = cart.length > 0 ? 80 : 0;
+  const shipping = cart.length > 0 ? 0 : 0;
   const total = subtotal + vat + shipping;
 
-  // Khi giỏ hàng trống
+  const handleCheckout = async () => {
+    try {
+      await AsyncStorage.setItem(
+        "checkoutData",
+        JSON.stringify({ cart, total })
+      );
+      router.push("/checkout");
+    } catch (error) {
+      console.error("Error navigating to checkout:", error);
+    }
+  };
+
   if (cart.length === 0) {
     return (
       <View style={styles.container}>
@@ -84,7 +235,6 @@ useFocusEffect(
     );
   }
 
-  // Khi có sản phẩm trong giỏ
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -97,13 +247,13 @@ useFocusEffect(
 
       <FlatList
         data={cart}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.productId.toString()}
         renderItem={({ item }) => (
           <View style={styles.cartItem}>
             <Image
               source={
                 item.image
-                  ? { uri: item.image }
+                  ? { uri: GET_IMG("products", item.image) }
                   : require("../../../assets/images/products/Product1.png")
               }
               style={styles.image}
@@ -117,21 +267,21 @@ useFocusEffect(
               <View style={styles.qtyRow}>
                 <TouchableOpacity
                   style={styles.qtyBtn}
-                  onPress={() => decreaseQty(item.id)}
+                  onPress={() => decreaseQty(item.productId)}
                 >
                   <Ionicons name="remove-outline" size={18} color="#000" />
                 </TouchableOpacity>
-                <Text style={styles.qty}>{item.qty}</Text>
+                <Text style={styles.qty}>{item.quantity}</Text>
                 <TouchableOpacity
                   style={styles.qtyBtn}
-                  onPress={() => increaseQty(item.id)}
+                  onPress={() => increaseQty(item.productId)}
                 >
                   <Ionicons name="add-outline" size={18} color="#000" />
                 </TouchableOpacity>
               </View>
             </View>
 
-            <TouchableOpacity onPress={() => removeItem(item.id)}>
+            <TouchableOpacity onPress={() => removeItem(item.productId)}>
               <Ionicons name="trash-outline" size={22} color="red" />
             </TouchableOpacity>
           </View>
@@ -157,10 +307,7 @@ useFocusEffect(
           <Text style={styles.totalValue}>${total}</Text>
         </View>
 
-        <TouchableOpacity
-          style={styles.checkoutBtn}
-          onPress={() => router.push("/(pay)")}
-        >
+        <TouchableOpacity style={styles.checkoutBtn} onPress={handleCheckout}>
           <Text style={styles.checkoutText}>Go To Checkout →</Text>
         </TouchableOpacity>
       </View>
