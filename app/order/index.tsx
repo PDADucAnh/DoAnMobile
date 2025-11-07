@@ -1,5 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
-// ... (các import khác giữ nguyên)
+import React, { useState, useEffect } from "react"; // 1. Bỏ useCallback
 import {
   View,
   Text,
@@ -11,13 +10,11 @@ import {
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
+// 2. Bỏ useFocusEffect (đã xóa)
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { GET_USER_ORDERS, GET_IMG } from "../../APIService";
 
-// ===================================
-// BẮT ĐẦU SỬA LỖI
-// ===================================
+// ... (Interface ApiProduct, ApiOrderItem, ApiOrderDTO giữ nguyên)
 
 // Đây là kiểu dữ liệu MÀ CHÚNG TA MUỐN (dùng snake_case cho component)
 interface OrderItem {
@@ -26,7 +23,10 @@ interface OrderItem {
   ordered_product_price: number;
   order_status: string; 
   product_name: string;
-  image: string; 
+  // ===================================
+  // SỬA LỖI 1 (TYPESCRIPT) TẠI ĐÂY
+  image: string | null; // Cho phép image là null
+  // ===================================
   size: string; 
 }
 
@@ -35,7 +35,6 @@ interface ApiProduct {
   productId: number;
   productName: string;
   image: string;
-  // ... (các trường khác của product)
 }
 interface ApiOrderItem {
   orderItemId: number;
@@ -60,12 +59,10 @@ export default function OrderScreen() {
   const [allOrderItems, setAllOrderItems] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load đơn hàng khi màn hình được focus
-  useFocusEffect(
-    useCallback(() => {
-      loadOrders();
-    }, [])
-  );
+  // 3. Dùng useEffect (chạy 1 lần)
+  useEffect(() => {
+    loadOrders();
+  }, []); 
 
   const loadOrders = async () => {
     setLoading(true);
@@ -78,40 +75,36 @@ export default function OrderScreen() {
       }
       
       const response = await GET_USER_ORDERS(email); 
-      // 1. Nhận dữ liệu camelCase từ API
       const orders: ApiOrderDTO[] = response.data || [];
 
       console.log("--- DỮ LIỆU GỐC TỪ API (TRƯỚC KHI LỌC) ---");
       console.log(JSON.stringify(orders, null, 2)); 
       console.log("-----------------------------------------");
 
-      // 2. "Làm phẳng" (Flatten) VÀ "Chuyển đổi" (Transform)
+      // 4. "Làm phẳng" (Flatten) VÀ "Chuyển đổi" (Transform) - CÁCH AN TOÀN HƠN
       const flattenedItems: OrderItem[] = orders
-        // Lọc các đơn hàng hợp lệ
         .filter(order => order && order.orderItems && order.orderItems.length > 0) 
         .flatMap(order => 
-          // Lặp qua các sản phẩm (camelCase)
           (order.orderItems || [])
-            // Lọc các sản phẩm hợp lệ
-            .filter(item => item && item.orderItemId && item.product) 
+            // Sửa logic filter: Chỉ cần item và orderItemId
+            .filter(item => item && item.orderItemId) 
             .map(item => ({
               // Chuyển đổi từ camelCase (API) sang snake_case (App)
               order_item_id: item.orderItemId,
               quantity: item.quantity,
               ordered_product_price: item.orderedProductPrice,
               
-              // Lấy từ đối tượng 'product' lồng nhau
-              product_name: item.product.productName,
-              image: item.product.image,
-              size: "M", // 'size' không có trong API, dùng tạm
+              // Thêm kiểm tra 'product' an toàn
+              product_name: item.product ? item.product.productName : "Sản phẩm đã bị xóa",
+              image: item.product ? item.product.image : null, // Cho phép ảnh null
+              size: "M", 
               
-              // Sao chép 'orderStatus' (camelCase) từ cha
               order_status: order.orderStatus, 
             }))
         );
       
       console.log("Đã tải và làm phẳng các sản phẩm:", flattenedItems);
-      setAllOrderItems(flattenedItems); // Lưu danh sách sản phẩm (snake_case)
+      setAllOrderItems(flattenedItems); 
 
     } catch (error) {
       console.error("Lỗi khi tải đơn hàng:", error);
@@ -121,32 +114,29 @@ export default function OrderScreen() {
     }
   };
 
-  // Lọc danh sách đơn hàng dựa trên tab
-  const filteredOrders = useMemo(() => {
-    const ongoingStatus = ["in transit", "packing", "picked", "order accepted !"];
-    
-    // Code này giờ đã đúng vì allOrderItems là snake_case
-    if (activeTab === "Ongoing") {
-      return allOrderItems.filter((item) =>
-        ongoingStatus.includes((item.order_status || "").toLowerCase())
-      );
-    } else {
-      return allOrderItems.filter((item) =>
-        !ongoingStatus.includes((item.order_status || "").toLowerCase())
-      );
-    }
-  }, [allOrderItems, activeTab]);
+  // 5. Xóa useMemo - Tính toán 'filteredOrders' trực tiếp
+  const ongoingStatus = ["in transit", "packing", "picked", "order accepted !"];
+  let filteredOrders: OrderItem[] = [];
 
-  // ===================================
-  // KẾT THÚC SỬA LỖI
-  // ===================================
+  if (activeTab === "Ongoing") {
+    filteredOrders = allOrderItems.filter((item) =>
+      ongoingStatus.includes((item.order_status || "").toLowerCase())
+    );
+  } else {
+    filteredOrders = allOrderItems.filter((item) =>
+      !ongoingStatus.includes((item.order_status || "").toLowerCase())
+    );
+  }
 
   // Component render từng thẻ đơn hàng (Theo Ảnh 1)
-  // Code này giờ đã đúng vì item là snake_case
   const OrderCard = ({ item }: { item: OrderItem }) => (
     <View style={styles.card}>
       <Image
-        source={{ uri: GET_IMG("products", item.image) }}
+        source={
+          item.image 
+            ? { uri: GET_IMG("products", item.image) }
+            : require('../../assets/images/products/Product1.png') // Ảnh dự phòng
+        }
         style={styles.cardImage}
       />
       <View style={styles.cardDetails}>
@@ -236,9 +226,10 @@ export default function OrderScreen() {
         <FlatList
           data={filteredOrders} 
           renderItem={({ item }) => <OrderCard item={item} />}
-          // Code này giờ đã đúng vì item là snake_case
           keyExtractor={(item) => item.order_item_id.toString()}
           contentContainerStyle={{ paddingHorizontal: 15, paddingBottom: 20 }}
+          // 6. Thêm 'extraData' để đảm bảo FlatList render lại khi tab đổi
+          extraData={activeTab} 
         />
       )}
     </View>
@@ -324,6 +315,7 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 8,
     marginRight: 12,
+    backgroundColor: '#f0f0f0', // Thêm màu nền cho ảnh
   },
   cardDetails: {
     flex: 1,
