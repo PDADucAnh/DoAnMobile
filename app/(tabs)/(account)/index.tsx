@@ -15,10 +15,10 @@ import { useRouter } from "expo-router";
 import GeminiAssistant from "../../components/GeminiAssistant";
 
 const accountOptions = [
-  { id: "1", title: "My Orders", icon: "cube-outline", route: "/orders" },
+  { id: "1", title: "My Orders", icon: "cube-outline", route: "/order" },
   { id: "2", title: "My Details", icon: "person-outline", route: "/details" },
   { id: "3", title: "Address Book", icon: "home-outline", route: "/address" },
-  { id: "4", title: "Payment Methods", icon: "card-outline", route: "/payment" },
+  { id: "4", title: "Payment Methods", icon: "card-outline", route: "/checkout" },
   { id: "5", title: "Notifications", icon: "notifications-outline", route: "/notifications" },
   { id: "6", title: "FAQs", icon: "help-circle-outline", route: "/faqs" },
   { id: "7", title: "Help Center", icon: "headset-outline", route: "/help" },

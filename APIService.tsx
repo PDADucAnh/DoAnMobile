@@ -215,15 +215,26 @@ export async function DELETE_CART_PRODUCT(
 }
 
 /* =========================
-   API GEMINI (SỬA LẠI ĐỂ GỌI NODE 3000)
-   ========================= */
+  TAPI GEMINI (vẫn dùng 3000)
+  ========================= */
 
 export async function POST_TO_GEMINI(
   prompt: string
 ): Promise<AxiosResponse<any>> {
-  // "ask-gemini" là endpoint bạn vừa tạo ở server.js
-  // 
-  // ⬇️⬇️⬇️ SỬA LỖI: Dùng hàm callNodeApi mới ⬇️⬇️⬇️
-  //
   return callNodeApi("ask-gemini", "POST", { prompt: prompt });
+}
+
+
+/* =========================
+   API ĐƠN HÀNG (MỚI - Dùng 8080)
+   ========================= */
+export async function GET_USER_ORDERS(
+  email: string
+): Promise<AxiosResponse<any>> {
+  
+  // [SỬA LỖI 401]
+  // Sửa lại URL để khớp với OrderController.java
+  // Đường dẫn đúng là: "public/users/{email}/orders"
+  
+  return callApi(`public/users/${encodeURIComponent(email)}/orders`, "GET");
 }
