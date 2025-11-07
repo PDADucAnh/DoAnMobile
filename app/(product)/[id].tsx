@@ -197,7 +197,7 @@ export default function ProductDetail() {
         <View>
           <Text style={styles.priceLabel}>Price</Text>
           <Text style={styles.priceValue}>
-            ${product.specialPrice || product.price}
+            {product.specialPrice || product.price} VND
           </Text>
         </View>
         <TouchableOpacity style={styles.addButton} onPress={handleAddToCart}>
