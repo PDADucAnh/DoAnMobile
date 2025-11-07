@@ -1,35 +1,89 @@
-import React from "react";
+import React, { useState } from "react"; // 1. Thêm useState
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Modal, // 2. Thêm Modal
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useRouter } from "expo-router";
-// 1. IMPORT COMPONENT TRỢ LÝ AI
-// ==================================
-// SỬA LỖI 4, 5 TẠI ĐÂY: Đường dẫn sai
-// ==================================
-import GeminiAssistant from "../../components/GeminiAssistant";
+import GeminiAssistant from "../../components/GeminiAssistant"; 
+import AsyncStorage from "@react-native-async-storage/async-storage"; // 3. Thêm AsyncStorage
 
+// ... (danh sách accountOptions giữ nguyên)
 const accountOptions = [
-  { id: "1", title: "My Orders", icon: "cube-outline", route: "/order" },
+  { id: "1", title: "My Orders", icon: "cube-outline", route: "/order" }, 
   { id: "2", title: "My Details", icon: "person-outline", route: "/details" },
   { id: "3", title: "Address Book", icon: "home-outline", route: "/address" },
-  { id: "4", title: "Payment Methods", icon: "card-outline", route: "/checkout" },
+  { id: "4", title: "Payment Methods", icon: "card-outline", route: "/payment" },
+  { id: "8", title: "Change Password", icon: "lock-closed-outline", route: "/change-password"},
   { id: "5", title: "Notifications", icon: "notifications-outline", route: "/notifications" },
   { id: "6", title: "FAQs", icon: "help-circle-outline", route: "/faqs" },
   { id: "7", title: "Help Center", icon: "headset-outline", route: "/help" },
 ];
 
+// =============================================
+// BẮT ĐẦU SỬA: Thêm kiểu dữ liệu cho Props
+// =============================================
+
+// 1. Định nghĩa kiểu dữ liệu cho props của Modal
+type LogoutModalProps = {
+  visible: boolean;
+  onLogout: () => void;
+  onCancel: () => void;
+};
+
+// 2. Áp dụng kiểu dữ liệu vào component
+const LogoutModal = ({ visible, onLogout, onCancel }: LogoutModalProps) => {
+  return (
+    <Modal visible={visible} transparent={true} animationType="fade">
+      <View style={styles.modalBackdrop}>
+        <View style={styles.modalContainer}>
+          <Ionicons name="alert-circle-outline" size={80} color="#dc3545" />
+          <Text style={styles.modalTitle}>Logout?</Text>
+          <Text style={styles.modalSubtitle}>
+            Are you sure you want to logout?
+          </Text>
+
+          <TouchableOpacity style={styles.modalButtonYes} onPress={onLogout}>
+            <Text style={styles.modalButtonTextYes}>Yes, Logout</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.modalButtonCancel} onPress={onCancel}>
+            <Text style={styles.modalButtonTextCancel}>No, Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+// =============================================
+// KẾT THÚC SỬA
+// =============================================
+
+
 export default function AccountScreen() {
   const router = useRouter();
+  
+  // 4. Thêm state cho modal
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
+  // 5. Sửa hàm handleLogout (giờ chỉ mở modal)
   const handleLogout = () => {
-    // Xóa dữ liệu người dùng (nếu có dùng AsyncStorage)
-    // await AsyncStorage.removeItem("user");
+    setShowLogoutModal(true);
+  };
+
+  // 6. Thêm hàm xác nhận logout
+  const confirmLogout = async () => {
+    // Xóa tất cả dữ liệu đã lưu
+    await AsyncStorage.removeItem("jwt-token");
+    await AsyncStorage.removeItem("user-email");
+    await AsyncStorage.removeItem("cart-id");
+    await AsyncStorage.removeItem("userId");
+
+    // Đóng modal
+    setShowLogoutModal(false);
 
     // Điều hướng về login
     router.replace("/login");
@@ -37,7 +91,14 @@ export default function AccountScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
+      {/* 7. Thêm Modal vào giao diện */}
+      <LogoutModal
+        visible={showLogoutModal}
+        onLogout={confirmLogout}
+        onCancel={() => setShowLogoutModal(false)}
+      />
+
+      {/* Header (giữ nguyên) */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#000" />
@@ -50,7 +111,6 @@ export default function AccountScreen() {
 
       <ScrollView contentContainerStyle={{ paddingBottom: 50 }}>
         
-        {/* 2. ĐẶT COMPONENT TRỢ LÝ AI VÀO ĐÂY */}
         <GeminiAssistant />
 
         {/* Danh sách các tùy chọn (giữ nguyên) */}
@@ -69,6 +129,7 @@ export default function AccountScreen() {
         ))}
 
         {/* Logout (giữ nguyên) */}
+        {/* 'onPress' đã được sửa để gọi hàm handleLogout mới */}
         <TouchableOpacity style={styles.row} onPress={handleLogout}>
           <View style={styles.rowLeft}>
             <Ionicons name="log-out-outline" size={22} color="red" />
@@ -104,4 +165,60 @@ const styles = StyleSheet.create({
   },
   rowLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
   rowText: { fontSize: 15, fontWeight: "500" },
+
+  // =============================================
+  // 8. THÊM STYLES CHO MODAL
+  // =============================================
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContainer: {
+    width: "80%",
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 25,
+    alignItems: "center",
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "600",
+    marginTop: 15,
+    marginBottom: 5,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  modalButtonYes: {
+    backgroundColor: "#dc3545", // Màu đỏ
+    borderRadius: 10,
+    paddingVertical: 12,
+    width: "100%",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  modalButtonTextYes: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  modalButtonCancel: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 10,
+    paddingVertical: 12,
+    width: "100%",
+    alignItems: "center",
+  },
+  modalButtonTextCancel: {
+    color: "#000",
+    fontSize: 16,
+    fontWeight: "600",
+  },
 });
