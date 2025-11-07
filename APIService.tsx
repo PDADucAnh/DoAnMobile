@@ -136,7 +136,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios, { AxiosResponse } from "axios";
 
 // Cấu hình URL gốc của API (thay đổi IP tùy theo máy backend)
-export const BASE_URL = "http://172.16.3.37";
+export const BASE_URL = "http://172.16.2.176";
 const API_URL = `${BASE_URL}:8080/api`;
 
 // Hàm lấy JWT token từ AsyncStorage

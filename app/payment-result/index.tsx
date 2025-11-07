@@ -10,7 +10,7 @@ export default function PaymentResult() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>
-        {status === "success" ? "Thanh toán thành công 🎉" : "Thanh toán thất bại ❌"}
+        {status === "success" ? "Thanh toán thành công !" : "Thanh toán thất bại !"}
       </Text>
       {status === "success" && (
         <>

@@ -1,255 +1,561 @@
+import { Ionicons } from "@expo/vector-icons";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  View,
-  Text,
+  Platform,
   ScrollView,
   StyleSheet,
+  Text,
+  TextInput,
   TouchableOpacity,
-  Platform,
-  Alert,
+  View,
+  Alert, // Sửa lại Alert
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { BASE_URL } from "../../APIService";
-import { useRouter } from "expo-router"; // Thêm useRouter
-
-// Dữ liệu giả cho thẻ
-const SAVED_CARDS = [
-  { id: "1", type: "visa", last4: "2512", default: true },
-  { id: "2", type: "mastercard", last4: "5421", default: false },
-  { id: "3", type: "visa", last4: "2512", default: false },
-];
+import { BASE_URL } from "../../APIService"; // Dùng IP cứng cho backend Node.js
 
 export default function PaymentScreen() {
-  const router = useRouter(); // Thêm router
-  const [selectedCardId, setSelectedCardId] = useState<string>("1"); // State cho thẻ được chọn
-  
-  // ===============================================
-  // GIỮ NGUYÊN TOÀN BỘ LOGIC CỦA BẠN (VNPay, v.v.)
-  // ===============================================
-  const [agreeTerms, setAgreeTerms] = useState<boolean>(false);
-  const [total, setTotal] = useState<number>(0);
-  const [email, setEmail] = useState<string>("");
-  const [cartId, setCartId] = useState<number | null>(null);
-  const [message, setMessage] = useState<string>("");
+  const router = useRouter();
+  const params = useLocalSearchParams();
+  const [message, setMessage] = useState("");
+  const [selectedPayment, setSelectedPayment] = useState("");
+  const [agreeTerms, setAgreeTerms] = useState(false);
+  const [corporateInvoice, setCorporateInvoice] = useState(false);
+  const [totalVND, setTotalVND] = useState(0);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const storedEmail = await AsyncStorage.getItem("user-email");
-        const storedCheckout = await AsyncStorage.getItem("checkoutData");
+    // Logic này lấy 'total' từ trang trước
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      const vnpCode = url.searchParams.get("vnp_ResponseCode");
+      const amountParam = url.searchParams.get("amount");
+      const status = url.searchParams.get("status");
 
-        if (storedEmail) setEmail(storedEmail);
-        if (storedCheckout) {
-          const parsed = JSON.parse(storedCheckout);
-          if (parsed.total) setTotal(parsed.total);
-        }
-
-        if (storedEmail) {
-          // NOTE: Port 3000? Bạn chắc chắn đây là port backend chính?
-          const response = await fetch(
-            `${BASE_URL}:3000/api/cart/latest?email=${encodeURIComponent(
-              storedEmail
-            )}`
-          );
-          const data = await response.json();
-          if (response.ok && data.id) {
-            setCartId(data.id);
-          } else {
-            console.warn("⚠️ Không tìm thấy giỏ hàng cho user:", storedEmail);
-          }
-        }
-      } catch (error) {
-        console.error("❌ Lỗi khi load dữ liệu PaymentScreen:", error);
+      let totalAmount = 0;
+      if (amountParam) {
+        totalAmount = parseFloat(amountParam);
+      } else if (params.total) {
+        totalAmount = parseFloat(params.total as string);
       }
-    })();
-  }, []);
+      setTotalVND(totalAmount);
+
+      if (vnpCode === "00" || status === "success") {
+        setMessage("Thanh toán thành công!");
+      } else if (vnpCode) {
+        setMessage("Thanh toán thất bại!");
+      }
+    } else if (params.total) {
+      // Dành cho mobile, chỉ lấy total
+      setTotalVND(parseFloat(params.total as string));
+    }
+  }, [params.total]);
+
 
   const handlePayment = async () => {
-    // ... Logic VNPay của bạn được giữ nguyên ...
-    if (!selectedCardId) { // Đã đổi tên biến
-      Alert.alert("Thông báo", "Vui lòng chọn phương thức thanh toán");
+    if (!selectedPayment) {
+      setMessage("Vui lòng chọn phương thức thanh toán");
       return;
     }
-    
-    // ...
-    // Giả sử logic VNPay của bạn vẫn ở đây
-    // ...
+    if (!agreeTerms) {
+      setMessage("Vui lòng đồng ý với điều khoản");
+      return;
+    }
+    if (selectedPayment !== "vnpay") {
+      Alert.alert("Thông báo", "Chức năng này đang được hoàn thiện.");
+      setMessage("Chỉ demo VNPay trong flow này.");
+      return;
+    }
 
-    // Tạm thời, khi bấm Apply, chỉ quay lại
-    router.back();
+    try {
+      const email = await AsyncStorage.getItem("user-email");
+      if (!email) {
+        setMessage("Không tìm thấy email người dùng, vui lòng đăng nhập lại.");
+        return;
+      }
+
+      const cartId = await AsyncStorage.getItem("cart-id"); 
+      if (!cartId) {
+        setMessage("Không tìm thấy giỏ hàng của bạn.");
+        return;
+      }
+
+      // Kiểm tra lại lỗi Amount: 0
+      if (totalVND <= 0) {
+        setMessage("Số tiền thanh toán phải lớn hơn 0.");
+        return;
+      }
+
+      console.log(" Sending create_payment with amount:", totalVND, { email, cartId });
+
+      // ===================================
+      // SỬA LỖI MẠNG VÀ PHƯƠNG THỨC
+      // ===================================
+
+      // 1. Sửa IP thành IP của bạn
+      // 2. Sửa port thành 3000 (Node.js)
+      // 3. Dùng 'fetch' (mặc định là GET) vì server.js dùng app.get()
+      const paymentUrl = `${BASE_URL}:3000/create_payment?email=${encodeURIComponent(email)}&cartId=${encodeURIComponent(cartId)}&amount=${encodeURIComponent(totalVND)}`;
+      
+      const resp = await fetch(paymentUrl); 
+      // KHÔNG CẦN method: 'POST' hay body
+
+      // ===================================
+      // KẾT THÚC SỬA LỖI
+      // ===================================
+
+      const json = await resp.json();
+      console.log("🔸 create_payment response:", json);
+
+      if (!resp.ok) {
+        setMessage("Server trả lỗi: " + (json?.error || resp.status));
+        return;
+      }
+
+      if (!json.url) {
+        setMessage("Không nhận được link thanh toán từ server");
+        return;
+      }
+
+      // 4. Redirect sang VNPay
+      if (Platform.OS === "web") {
+        window.location.href = json.url;
+      } else {
+        Alert.alert("Thông báo", "Thanh toán VNPay chỉ hỗ trợ trên nền tảng web trong demo này.");
+        setMessage("Thanh toán VNPay chỉ dùng trên web trong demo này.");
+      }
+    } catch (err) {
+      console.error("handlePayment error:", err);
+      // Lỗi "Failed to fetch" thường là do sai IP hoặc server Node.js chưa chạy
+      setMessage("Lỗi kết nối server (Kiểm tra IP và đảm bảo server Node.js đang chạy)");
+    }
   };
-  // ===============================================
-  // KẾT THÚC LOGIC CỦA BẠN
-  // ===============================================
 
-
-  // Component render từng thẻ (Giống Ảnh 3)
-  const CardRow = ({
-    id,
-    type,
-    last4,
-    isDefault,
-  }: {
+  // Component UI lựa chọn thanh toán MỚI
+  const PaymentOption = ({ id, title, logo, selected, onSelect }: {
     id: string;
-    type: "visa" | "mastercard";
-    last4: string;
-    isDefault: boolean;
-  }) => {
-    const isSelected = selectedCardId === id;
-    return (
-      <TouchableOpacity
-        style={[
-          styles.cardRow,
-          isSelected && styles.cardRowActive,
-        ]}
-        onPress={() => setSelectedCardId(id)}
-      >
-        <Ionicons 
-          name="card" // Bạn có thể đổi logo mastercard
-          size={30} 
-          color={type === 'visa' ? '#1a1f71' : '#eb001b'} 
-        />
-        <Text style={styles.cardText}>
-          Thanh toán bằng VNPay.
-        </Text>
-        {isDefault && <Text style={styles.defaultTag}>Default</Text>}
-        <Ionicons
-          name={isSelected ? "radio-button-on" : "radio-button-off"}
-          size={24}
-          color={isSelected ? "#000" : "#ccc"}
-        />
-      </TouchableOpacity>
-    );
-  };
+    title: string;
+    logo?: string[];
+    selected: boolean;
+    onSelect: (id: string) => void;
+  }) => (
+    <TouchableOpacity
+      style={[styles.paymentOption, selected && styles.paymentOptionSelected]}
+      onPress={() => onSelect(id)}
+    >
+      <View style={styles.paymentLeft}>
+        <View
+          style={[
+            styles.radioButton,
+            selected && styles.radioButtonSelected,
+          ]}
+        >
+          {selected && <View style={styles.radioButtonInner} />}
+        </View>
+        <Text style={styles.paymentTitle}>{title}</Text>
+      </View>
+      {logo && (
+        <View style={styles.paymentLogos}>
+          {logo.map((item, index) => (
+            <View key={index} style={styles.logoBox}>
+              <Text style={styles.logoText}>{item}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+
 
   return (
     <View style={styles.container}>
-      {/* Header (Giống Ảnh 3) */}
+      <Stack.Screen options={{ title: "Checkout", headerShown: false }} />
+
+      {/* Header (Lấy từ code mới) */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
+          <Ionicons name="chevron-back" size={24} color="#1F2937" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Payment Method</Text>
+        <Text style={styles.headerTitle}>Checkout</Text>
         <TouchableOpacity>
-          <Ionicons name="notifications-outline" size={24} color="#000" />
+          <Text style={styles.skipButton}>Skip</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content}>
-        <Text style={styles.title}>Saved Cards</Text>
-        
-        {/* Render danh sách thẻ */}
-        {SAVED_CARDS.map((card) => (
-          <CardRow
-            key={card.id}
-            id={card.id}
-            type={card.type as "visa" | "mastercard"}
-            last4={card.last4}
-            isDefault={card.default}
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <View style={styles.content}>
+          {/* Payment Method Section (Lấy từ code mới) */}
+          <Text style={styles.sectionTitle}>Payment Method</Text>
+
+          <PaymentOption
+            id="card"
+            title="Credit Card"
+            logo={["VISA", "MC"]}
+            selected={selectedPayment === "card"}
+            onSelect={setSelectedPayment}
           />
-        ))}
 
-        {/* Nút Add New Card */}
-        <TouchableOpacity style={styles.addButton}>
-          <Ionicons name="add" size={24} color="#000" />
-          <Text style={styles.addButtonText}>Add New Card</Text>
-        </TouchableOpacity>
+          <PaymentOption
+            id="vnpay"
+            title="VNPay"
+            logo={["VNPAY"]}
+            selected={selectedPayment === "vnpay"}
+            onSelect={setSelectedPayment}
+          />
 
-        {/* Hiển thị message lỗi VNPay (nếu có) */}
-        {message ? (
-          <View style={styles.messageBox}>
-            <Text style={styles.messageText}>{message}</Text>
+          <PaymentOption
+            id="momo"
+            title="MoMo"
+            logo={["MoMo"]}
+            selected={selectedPayment === "momo"}
+            onSelect={setSelectedPayment}
+          />
+
+          <PaymentOption
+            id="cod"
+            title="Thanh toán khi nhận hàng"
+            selected={selectedPayment === "cod"}
+            onSelect={setSelectedPayment}
+          />
+
+          {/* Card Details - Only show if Credit Card is selected */}
+          {selectedPayment === "card" && (
+            <View style={styles.cardDetailsSection}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Card Holder Name</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter name on card"
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Card Number</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="0000 0000 0000 0000"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.inputRow}>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>Expiry Date</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="MM/YY"
+                    placeholderTextColor="#9CA3AF"
+                  />
+                </View>
+
+                <View style={[styles.inputGroup, { flex: 1, marginLeft: 12 }]}>
+                  <Text style={styles.inputLabel}>CVV</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="123"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="numeric"
+                    maxLength={3}
+                  />
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Terms Checkbox */}
+          <TouchableOpacity
+            style={styles.checkboxRow}
+            onPress={() => setAgreeTerms(!agreeTerms)}
+          >
+            <View
+              style={[
+                styles.checkbox,
+                agreeTerms && styles.checkboxChecked,
+              ]}
+            >
+              {agreeTerms && (
+                <Ionicons name="checkmark" size={14} color="#fff" />
+              )}
+            </View>
+            <Text style={styles.checkboxText}>
+              I have read the{" "}
+              <Text style={styles.linkText}>preliminary information conditions</Text> and
+              the <Text style={styles.linkText}>distance sales agreement</Text>.
+            </Text>
+          </TouchableOpacity>
+
+          {/* Corporate Invoice Checkbox */}
+          <TouchableOpacity
+            style={styles.checkboxRow}
+            onPress={() => setCorporateInvoice(!corporateInvoice)}
+          >
+            <View
+              style={[
+                styles.checkbox,
+                corporateInvoice && styles.checkboxChecked,
+              ]}
+            >
+              {corporateInvoice && (
+                <Ionicons name="checkmark" size={14} color="#fff" />
+              )}
+            </View>
+            <Text style={styles.checkboxText}>I require a corporate invoice.</Text>
+          </TouchableOpacity>
+
+          {/* Total and Pay Button (Footer mới) */}
+          <View style={styles.footer}>
+            <View>
+              <Text style={styles.totalLabel}>Total</Text>
+              <Text style={styles.totalAmount}>{totalVND.toLocaleString()} VNĐ</Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.payButton, !agreeTerms && styles.payButtonDisabled]}
+              onPress={handlePayment}
+              disabled={!agreeTerms}
+            >
+              <Text style={styles.payButtonText}>Pay</Text>
+            </TouchableOpacity>
           </View>
-        ) : null}
-      </ScrollView>
 
-      {/* Footer Button (Giống Ảnh 3) */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={styles.payButton}
-          onPress={handlePayment} // Dùng lại hàm handlePayment của bạn
-        >
-          <Text style={styles.payText}>Apply</Text>
-        </TouchableOpacity>
-      </View>
+          {/* Message (Lấy từ code mới) */}
+          {message !== "" && (
+            <View
+              style={[
+                styles.messageBox,
+                message.includes("thành công")
+                  ? styles.messageSuccess
+                  : styles.messageError,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.messageText,
+                  message.includes("thành công")
+                    ? styles.messageTextSuccess
+                    : styles.messageTextError,
+                ]}
+              >
+                {message}
+              </Text>
+            </View>
+          )}
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
-// Styles (Đã viết lại)
+// STYLES MỚI (Giữ nguyên)
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
+  container: {
+    flex: 1,
+    backgroundColor: "#F9FAFB",
+  },
   header: {
+    backgroundColor: "#fff",
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 15,
     borderBottomWidth: 1,
-    borderColor: "#f0f0f0",
+    borderBottomColor: "#F3F4F6",
   },
-  headerTitle: { fontSize: 20, fontWeight: "700" },
-  content: { padding: 20 },
-  title: { fontSize: 18, fontWeight: "600", marginBottom: 15 },
-  cardRow: {
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  skipButton: {
+    fontSize: 16,
+    color: "#111827",
+  },
+  scrollView: {
+    flex: 1,
+  },
+  content: {
+    padding: 20,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111827",
+    marginBottom: 16,
+  },
+  paymentOption: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    padding: 16,
     flexDirection: "row",
     alignItems: "center",
-    padding: 15,
-    borderWidth: 1,
-    borderColor: "#eee",
-    borderRadius: 10,
-    marginBottom: 10,
+    justifyContent: "space-between",
+    marginBottom: 12,
   },
-  cardRowActive: {
-    borderColor: "#000",
-    backgroundColor: "#f9f9f9",
+  paymentOptionSelected: {
+    borderColor: "#111827",
+    borderWidth: 2,
   },
-  cardText: {
-    flex: 1,
-    fontSize: 16,
-    marginLeft: 15,
-  },
-  defaultTag: {
-    fontSize: 12,
-    color: "#555",
-    backgroundColor: "#eee",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 5,
-    marginRight: 10,
-  },
-  addButton: {
+  paymentLeft: {
     flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  radioButton: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "#D1D5DB",
     alignItems: "center",
     justifyContent: "center",
-    padding: 15,
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 10,
-    borderStyle: "dashed",
-    marginTop: 10,
   },
-  addButtonText: {
-    fontSize: 16,
+  radioButtonSelected: {
+    borderColor: "#111827",
+    backgroundColor: "#111827",
+  },
+  radioButtonInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#fff",
+  },
+  paymentTitle: {
+    fontSize: 15,
     fontWeight: "500",
-    marginLeft: 8,
+    color: "#111827",
+  },
+  paymentLogos: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  logoBox: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 4,
+    backgroundColor: "#F3F4F6",
+  },
+  logoText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#374151",
+  },
+  cardDetailsSection: {
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  inputGroup: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#374151",
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: "#111827",
+  },
+  inputRow: {
+    flexDirection: "row",
+  },
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 12,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderWidth: 2,
+    borderColor: "#D1D5DB",
+    borderRadius: 4,
+    marginRight: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  checkboxChecked: {
+    backgroundColor: "#111827",
+    borderColor: "#111827",
+  },
+  checkboxText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#6B7280",
+    lineHeight: 20,
+  },
+  linkText: {
+    color: "#3B82F6",
+    textDecorationLine: "underline",
   },
   footer: {
-    padding: 20,
-    borderTopWidth: 1,
-    borderColor: "#f0f0f0",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 24,
+    marginBottom: 16,
+  },
+  totalLabel: {
+    fontSize: 14,
+    color: "#6B7280",
+    marginBottom: 4,
+  },
+  totalAmount: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#111827",
   },
   payButton: {
-    backgroundColor: "#000",
-    borderRadius: 10,
+    backgroundColor: "#111827",
+    paddingHorizontal: 48,
     paddingVertical: 16,
+    borderRadius: 12,
+    shadowColor: "#111827",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  payButtonDisabled: {
+    backgroundColor: "#9CA3AF",
+    shadowOpacity: 0,
+  },
+  payButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  messageBox: {
+    marginTop: 16,
+    padding: 12,
+    borderRadius: 8,
     alignItems: "center",
   },
-  payText: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  
-  // Giữ lại style message của bạn
-  messageBox: { marginTop: 20 },
-  messageText: { textAlign: "center", fontSize: 14, color: "#444" },
+  messageSuccess: {
+    backgroundColor: "#D1FAE5",
+  },
+  messageError: {
+    backgroundColor: "#FEE2E2",
+  },
+  messageText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  messageTextSuccess: {
+    color: "#065F46",
+  },
+  messageTextError: {
+    color: "#991B1B",
+  },
 });

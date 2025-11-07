@@ -7,11 +7,12 @@ import {
   ScrollView,
   TextInput,
   Modal, // 1. Thêm Modal
+  Alert, // <<<<<< ĐÃ SỬA IMPORT
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons"; // 2. Thêm Ionicons
-import { Alert } from "react-native/Libraries/Alert/Alert";
+// import { Alert } from "react-native/Libraries/Alert/Alert"; // <<<< ĐÃ XÓA IMPORT SAI
 
 type CartItem = {
   // Giữ nguyên type của bạn
@@ -81,7 +82,9 @@ const PaymentStatusModal = ({
 export default function CheckoutScreen() {
   const router = useRouter();
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [total, setTotal] = useState<number>(0);
+  
+  // <<<<<< ĐÃ XÓA STATE 'total' KHÔNG SỬ DỤNG
+  // const [total, setTotal] = useState<number>(0);
   
   // State cho UI mới
   const [selectedMethodType, setSelectedMethodType] = useState<"Card" | "Cash" | "Pay">("Card");
@@ -98,17 +101,20 @@ export default function CheckoutScreen() {
       if (s) {
         const parsed = JSON.parse(s);
         setCart(parsed.cart || []);
-        // Tính toán lại tổng phụ, phí ship...
-        const subtotal = (parsed.cart || []).reduce(
-          (sum: number, it: any) => sum + (it.price ?? 0) * (it.quantity ?? it.qty ?? 1), 0
-        );
-        const shipping = subtotal > 0 ? 0 : 0; // Giả sử phí ship
-        setTotal(subtotal + shipping);
+        
+        // <<<<<< ĐÃ XÓA LOGIC 'setTotal' KHÔNG SỬ DỤNG
+        // const subtotal = (parsed.cart || []).reduce( ... );
+        // const shipping = subtotal > 0 ? 0 : 0; 
+        // setTotal(subtotal + shipping);
       }
     } catch (err) {
       console.error("Error loading checkoutData:", err);
     }
   };
+
+  // ===================================================
+  // BẮT ĐẦU SỬA THEO YÊU CẦU
+  // ===================================================
 
   // Hàm này sẽ xử lý việc đặt hàng
   const handlePlaceOrder = async () => {
@@ -117,33 +123,32 @@ export default function CheckoutScreen() {
       return;
     }
 
-    // Nếu chọn VNPay
-    if (selectedMethodType === "Cash") { // Giả sử "Cash" là VNPay
-       // Chuyển hướng đến màn hình VNPay
-       router.push("/vnpay-demo"); // Hoặc screen VNPay của bạn
-       return;
-    }
+    // 1. Hiển thị thông báo Alert
+    Alert.alert("Thông báo", "Chức năng đang được hoàn thiện!");
 
-    // Nếu chọn Card hoặc Pay (Giả lập)
-    // TODO: Gọi API đặt hàng thật ở đây
+    // 2. Luôn luôn hiển thị modal "failed"
+    setPaymentStatus("failed");
 
-    // Giả lập thành công
-    setPaymentStatus("success");
-    // Hiển thị modal trong 2 giây rồi tự động tắt
+    // 3. Tự động tắt modal sau 2 giây
     setTimeout(() => {
       setPaymentStatus(null);
-      // TODO: Điều hướng về trang chủ hoặc trang đơn hàng
-      // router.replace("/(tabs)/(home)");
     }, 2000); // 2 giây
-
-    // // Giả lập thất bại (bạn có thể test bằng cách uncomment dòng này)
-    // setPaymentStatus("failed");
+    
+    // Toàn bộ logic cũ (chuyển trang VNPay, giả lập success) đã bị vô hiệu hóa
   };
+  
+  // ===================================================
+  // KẾT THÚC SỬA
+  // ===================================================
+
 
   // Hàm này điều hướng đến trang chọn thẻ
   const handleNavigateToPaymentMethod = () => {
-    // Điều hướng đến trang chọn thẻ (Ảnh 3)
-    router.push("/(pay)/PaymentScreen");
+    // [SỬA LỖI] Bổ sung params: { total: finalTotal }
+    router.push({
+      pathname: "/(pay)/PaymentScreen",
+      params: { total: finalTotal }, // Gửi tổng tiền sang trang sau
+    });
   };
 
   // Tính toán lại các giá trị cho Order Summary
@@ -160,7 +165,9 @@ export default function CheckoutScreen() {
       {/* 1. Modal Thành công/Thất bại */}
       <PaymentStatusModal
         visible={!!paymentStatus}
-        status={paymentStatus || "success"}
+        // ⬇️⬇️⬇️ SỬA LỖI Ở DÒNG NÀY ⬇️⬇️⬇️
+        status={paymentStatus || "failed"} // Thay "success" bằng "failed"
+        // ⬆️⬆️⬆️ KẾT THÚC SỬA ⬆️⬆️⬆️
         onClose={() => setPaymentStatus(null)}
       />
 
@@ -235,7 +242,8 @@ export default function CheckoutScreen() {
             style={styles.selectedCardBox}
             onPress={handleNavigateToPaymentMethod} // Bấm vào đây để sang trang chọn thẻ (Ảnh 3)
           >
-            <Ionicons name="cart" size={30} color="#1a1f71" />
+            {/* <<<<<< ĐÃ SỬA ICON "cart" THÀNH "card" */}
+            <Ionicons name="card" size={30} color="#353539ff" />
             <Text style={styles.selectedCardText}>**** **** **** 2512</Text>
             <Ionicons name="pencil" size={20} color="#000" />
           </TouchableOpacity>
@@ -246,15 +254,15 @@ export default function CheckoutScreen() {
           <Text style={styles.sectionTitle}>Order Summary</Text>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Sub-total</Text>
-            <Text style={styles.summaryValue}>$ {subtotal.toFixed(2)}</Text>
+            <Text style={styles.summaryValue}>{subtotal.toFixed(2)} VND</Text>
           </View>
            <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>VAT (%)</Text>
-            <Text style={styles.summaryValue}>$ {vat.toFixed(2)}</Text>
+            <Text style={styles.summaryValue}>{vat.toFixed(2)} VND</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Shipping fee</Text>
-            <Text style={styles.summaryValue}>$ {shippingFee.toFixed(2)}</Text>
+            <Text style={styles.summaryValue}>{shippingFee.toFixed(2)} VND</Text>
           </View>
         </View>
         
@@ -273,7 +281,7 @@ export default function CheckoutScreen() {
       <View style={styles.footer}>
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>Total</Text>
-          <Text style={styles.totalValue}>$ {finalTotal.toFixed(2)}</Text>
+          <Text style={styles.totalValue}>{finalTotal.toFixed(2)} VND</Text>
         </View>
         <TouchableOpacity style={styles.applyBtn} onPress={handlePlaceOrder}>
           <Text style={styles.applyBtnText}>Place Order</Text>
@@ -283,7 +291,7 @@ export default function CheckoutScreen() {
   );
 }
 
-// 8. Styles (Đã viết lại toàn bộ)
+// 8. Styles (Giữ nguyên)
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff", paddingTop: 50 },
   scrollView: { flex: 1 },
