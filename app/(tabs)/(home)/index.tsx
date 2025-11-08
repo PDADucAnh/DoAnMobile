@@ -12,9 +12,7 @@ import {
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { GET_ALL, GET_IMG } from "../../../APIService";
 // 1. Import FilterModal và các kiểu dữ liệu
-import FilterModal, {
-  FilterOptions,
-} from "../../components/FilterModal";
+import FilterModal, { FilterOptions } from "../../components/FilterModal";
 
 interface Product {
   productId: number;
@@ -37,7 +35,7 @@ export default function HomeScreen() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(0);
-  
+
   // 2. State mới cho Lọc (Filter)
   const [isFilterModalVisible, setFilterModalVisible] = useState(false);
   const [appliedFilters, setAppliedFilters] = useState<FilterOptions | null>(
@@ -63,24 +61,40 @@ export default function HomeScreen() {
     const fetchProducts = async () => {
       try {
         setLoading(true);
-        
+
+        // ===================================
+        // BẮT ĐẦU SỬA LỖI
+        // ===================================
+
+        // 1. Endpoint KHÔNG chứa logic sort
         let endpoint =
           selectedCategory && selectedCategory !== 0
             ? `public/categories/${selectedCategory}/products?pageNumber=0&pageSize=50`
             : "public/products?pageNumber=0&pageSize=50";
+        
+        // 2. Biến sortQuery mặc định
+        let sortQuery = "&sortBy=productId&sortOrder=asc"; // Mặc định (Oldest/Relevance)
 
+        // 3. Cập nhật BIẾN 'sortQuery', KHÔNG CẬP NHẬT 'endpoint'
         if (appliedFilters) {
           if (appliedFilters.sortBy === "Price: Low - High") {
-            endpoint += "&sortBy=price&sortOrder=asc";
+            sortQuery = "&sortBy=price&sortOrder=asc"; // Sửa ở đây
           } else if (appliedFilters.sortBy === "Price: High - Low") {
-            endpoint += "&sortBy=price&sortOrder=desc";
+            sortQuery = "&sortBy=price&sortOrder=desc"; // Sửa ở đây
+          } else if (appliedFilters.sortBy === "Newest") {
+            sortQuery = "&sortBy=productId&sortOrder=desc"; // Sửa ở đây
           }
-          // Thêm logic lọc giá từ backend (nếu backend hỗ trợ)
-          // endpoint += `&minPrice=${appliedFilters.priceRange[0]}&maxPrice=${appliedFilters.priceRange[1]}`;
-        } else {
-           endpoint += "&sortBy=productId&sortOrder=asc"; // Mặc định
+          // (Không cần 'else' vì 'sortQuery' đã có mặc định)
         }
+        
+        // 4. Thêm sortQuery vào endpoint MỘT LẦN DUY NHẤT
+        endpoint += sortQuery;
 
+        // ===================================
+        // KẾT THÚC SỬA LỖI
+        // ===================================
+        
+        console.log("Đang gọi API:", endpoint); // Thêm log để debug
         const res = await GET_ALL(endpoint);
         const data = res.data.content || [];
         setProducts(data);
@@ -91,7 +105,7 @@ export default function HomeScreen() {
       }
     };
     fetchProducts();
-  }, [selectedCategory, appliedFilters]); 
+  }, [selectedCategory, appliedFilters]);
 
   const handleApplyFilters = (filters: FilterOptions) => {
     setAppliedFilters(filters);
@@ -99,17 +113,19 @@ export default function HomeScreen() {
   };
 
   // 5. Lọc sản phẩm (chỉ lọc theo giá ở frontend nếu backend không hỗ trợ)
-   const filteredProducts = products.filter((p) => {
-      // (Bỏ qua search query, vì nó đã chuyển sang trang Search)
-      
-      // Lọc theo giá (nếu backend chưa lọc)
-      if (appliedFilters) {
-        const price = p.specialPrice ?? p.price;
-        return price >= appliedFilters.priceRange[0] && price <= appliedFilters.priceRange[1];
-      }
-      return true; // Nếu không có filter, trả về true
-   });
+  const filteredProducts = products.filter((p) => {
+    // (Bỏ qua search query, vì nó đã chuyển sang trang Search)
 
+    // Lọc theo giá (nếu backend chưa lọc)
+    if (appliedFilters) {
+      const price = p.specialPrice ?? p.price;
+      return (
+        price >= appliedFilters.priceRange[0] &&
+        price <= appliedFilters.priceRange[1]
+      );
+    }
+    return true; // Nếu không có filter, trả về true
+  });
 
   if (loading) {
     return (
@@ -121,18 +137,12 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      {/* ===================================
-      BẮT ĐẦU SỬA
-      =================================== */}
       <FilterModal
         isVisible={isFilterModalVisible}
         onClose={() => setFilterModalVisible(false)}
         onApply={handleApplyFilters}
         products={products} // 1. Truyền 'products' (chưa lọc) vào modal
       />
-      {/* ===================================
-      KẾT THÚC SỬA
-      =================================== */}
 
       {/* Header */}
       <View style={styles.header}>
@@ -145,7 +155,7 @@ export default function HomeScreen() {
         <TouchableOpacity
           style={styles.searchBar}
           activeOpacity={0.8}
-          onPress={() => router.push("/(tabs)/(search)")} 
+          onPress={() => router.push("/(tabs)/(search)")}
         >
           <Ionicons name="search-outline" size={20} color="#888" />
           <Text style={styles.searchInputPlaceholder}>
@@ -242,7 +252,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   headerTitle: { fontSize: 22, fontWeight: "bold" },
-  
+
   // Sửa lại search bar
   searchBarContainer: {
     flexDirection: "row",

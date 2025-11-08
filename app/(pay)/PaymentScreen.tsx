@@ -50,7 +50,6 @@ export default function PaymentScreen() {
     }
   }, [params.total]);
 
-
   const handlePayment = async () => {
     if (!selectedPayment) {
       setMessage("Vui lòng chọn phương thức thanh toán");
@@ -62,7 +61,7 @@ export default function PaymentScreen() {
     }
     if (selectedPayment !== "vnpay") {
       Alert.alert("Thông báo", "Chức năng này đang được hoàn thiện.");
-      setMessage("Chỉ demo VNPay trong flow này.");
+      setMessage("Chỉ demo thanh toán bằng VNPay!.");
       return;
     }
 
@@ -73,7 +72,7 @@ export default function PaymentScreen() {
         return;
       }
 
-      const cartId = await AsyncStorage.getItem("cart-id"); 
+      const cartId = await AsyncStorage.getItem("cart-id");
       if (!cartId) {
         setMessage("Không tìm thấy giỏ hàng của bạn.");
         return;
@@ -84,27 +83,18 @@ export default function PaymentScreen() {
         setMessage("Số tiền thanh toán phải lớn hơn 0.");
         return;
       }
-
-      console.log(" Sending create_payment with amount:", totalVND, { email, cartId });
-
-      // ===================================
-      // SỬA LỖI MẠNG VÀ PHƯƠNG THỨC
-      // ===================================
-
-      // 1. Sửa IP thành IP của bạn
-      // 2. Sửa port thành 3000 (Node.js)
-      // 3. Dùng 'fetch' (mặc định là GET) vì server.js dùng app.get()
-      const paymentUrl = `${BASE_URL}:3000/create_payment?email=${encodeURIComponent(email)}&cartId=${encodeURIComponent(cartId)}&amount=${encodeURIComponent(totalVND)}`;
-      
-      const resp = await fetch(paymentUrl); 
-      // KHÔNG CẦN method: 'POST' hay body
-
-      // ===================================
-      // KẾT THÚC SỬA LỖI
-      // ===================================
-
+      console.log(" Sending create_payment with amount:", totalVND, {
+        email,
+        cartId,
+      });
+      const paymentUrl = `${BASE_URL}:3000/create_payment?email=${encodeURIComponent(
+        email
+      )}&cartId=${encodeURIComponent(cartId)}&amount=${encodeURIComponent(
+        totalVND
+      )}`;
+      const resp = await fetch(paymentUrl);
       const json = await resp.json();
-      console.log("🔸 create_payment response:", json);
+      console.log("create_payment response:", json);
 
       if (!resp.ok) {
         setMessage("Server trả lỗi: " + (json?.error || resp.status));
@@ -120,18 +110,29 @@ export default function PaymentScreen() {
       if (Platform.OS === "web") {
         window.location.href = json.url;
       } else {
-        Alert.alert("Thông báo", "Thanh toán VNPay chỉ hỗ trợ trên nền tảng web trong demo này.");
+        Alert.alert(
+          "Thông báo",
+          "Thanh toán VNPay chỉ hỗ trợ trên nền tảng web trong demo này."
+        );
         setMessage("Thanh toán VNPay chỉ dùng trên web trong demo này.");
       }
     } catch (err) {
       console.error("handlePayment error:", err);
       // Lỗi "Failed to fetch" thường là do sai IP hoặc server Node.js chưa chạy
-      setMessage("Lỗi kết nối server (Kiểm tra IP và đảm bảo server Node.js đang chạy)");
+      setMessage(
+        "Lỗi kết nối server (Kiểm tra IP và đảm bảo server Node.js đang chạy)"
+      );
     }
   };
 
   // Component UI lựa chọn thanh toán MỚI
-  const PaymentOption = ({ id, title, logo, selected, onSelect }: {
+  const PaymentOption = ({
+    id,
+    title,
+    logo,
+    selected,
+    onSelect,
+  }: {
     id: string;
     title: string;
     logo?: string[];
@@ -144,10 +145,7 @@ export default function PaymentScreen() {
     >
       <View style={styles.paymentLeft}>
         <View
-          style={[
-            styles.radioButton,
-            selected && styles.radioButtonSelected,
-          ]}
+          style={[styles.radioButton, selected && styles.radioButtonSelected]}
         >
           {selected && <View style={styles.radioButtonInner} />}
         </View>
@@ -165,7 +163,6 @@ export default function PaymentScreen() {
     </TouchableOpacity>
   );
 
-
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: "Checkout", headerShown: false }} />
@@ -181,7 +178,10 @@ export default function PaymentScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.content}>
           {/* Payment Method Section (Lấy từ code mới) */}
           <Text style={styles.sectionTitle}>Payment Method</Text>
@@ -269,10 +269,7 @@ export default function PaymentScreen() {
             onPress={() => setAgreeTerms(!agreeTerms)}
           >
             <View
-              style={[
-                styles.checkbox,
-                agreeTerms && styles.checkboxChecked,
-              ]}
+              style={[styles.checkbox, agreeTerms && styles.checkboxChecked]}
             >
               {agreeTerms && (
                 <Ionicons name="checkmark" size={14} color="#fff" />
@@ -280,8 +277,11 @@ export default function PaymentScreen() {
             </View>
             <Text style={styles.checkboxText}>
               I have read the{" "}
-              <Text style={styles.linkText}>preliminary information conditions</Text> and
-              the <Text style={styles.linkText}>distance sales agreement</Text>.
+              <Text style={styles.linkText}>
+                preliminary information conditions
+              </Text>{" "}
+              and the{" "}
+              <Text style={styles.linkText}>distance sales agreement</Text>.
             </Text>
           </TouchableOpacity>
 
@@ -300,17 +300,24 @@ export default function PaymentScreen() {
                 <Ionicons name="checkmark" size={14} color="#fff" />
               )}
             </View>
-            <Text style={styles.checkboxText}>I require a corporate invoice.</Text>
+            <Text style={styles.checkboxText}>
+              I require a corporate invoice.
+            </Text>
           </TouchableOpacity>
 
           {/* Total and Pay Button (Footer mới) */}
           <View style={styles.footer}>
             <View>
               <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalAmount}>{totalVND.toLocaleString()} VNĐ</Text>
+              <Text style={styles.totalAmount}>
+                {totalVND.toLocaleString()} VNĐ
+              </Text>
             </View>
             <TouchableOpacity
-              style={[styles.payButton, !agreeTerms && styles.payButtonDisabled]}
+              style={[
+                styles.payButton,
+                !agreeTerms && styles.payButtonDisabled,
+              ]}
               onPress={handlePayment}
               disabled={!agreeTerms}
             >

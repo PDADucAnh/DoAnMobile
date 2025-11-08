@@ -1,4 +1,3 @@
-// app/_layout.tsx
 import { Stack } from "expo-router";
 import { UserProvider } from "./UserContext"; // chắc chắn tạo file UserContext.tsx như hướng dẫn trước đó
 

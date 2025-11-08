@@ -18,7 +18,12 @@ interface Product {
 
 // Định nghĩa các lựa chọn Lọc
 export interface FilterOptions {
-  sortBy: "Relevance" | "Price: Low - High" | "Price: High - Low";
+  sortBy:
+    | "Relevance"
+    | "Price: Low - High"
+    | "Price: High - Low"
+    | "Newest"
+    | "Oldest";
   priceRange: [number, number];
   size: string | null;
 }
@@ -37,12 +42,12 @@ const roundUpToNextSignificant = (num: number) => {
   if (num <= 100000) return 100000; // Mức sàn 100k
   const len = Math.floor(num).toString().length;
   // Làm tròn lên hàng trăm nghìn (nếu giá 545k -> 600k)
-  if (len <= 6) { 
-    const factor = Math.pow(10, len - 1); 
+  if (len <= 6) {
+    const factor = Math.pow(10, len - 1);
     return Math.ceil(num / factor) * factor;
   }
   // Làm tròn lên hàng triệu (nếu giá 5.4M -> 6M)
-  if (len <= 7) { 
+  if (len <= 7) {
     const factor = Math.pow(10, len - 1);
     return Math.ceil(num / factor) * factor;
   }
@@ -61,21 +66,19 @@ export default function FilterModal({
   onApply,
   products, // 5. Nhận prop
 }: FilterModalProps) {
-  
   // 6. Tính toán maxPrice động
   const dynamicMaxPrice = useMemo(() => {
     if (products && products.length > 0) {
       const actualMax = Math.max(
-        ...products.map(p => p.specialPrice ?? p.price)
+        ...products.map((p) => p.specialPrice ?? p.price)
       );
       return roundUpToNextSignificant(actualMax);
     }
     return 1000000; // Mặc định 1 triệu nếu không có sản phẩm
   }, [products]); // Tính lại khi 'products' thay đổi
 
-  const [sortBy, setSortBy] =
-    useState<FilterOptions["sortBy"]>("Relevance");
-  
+  const [sortBy, setSortBy] = useState<FilterOptions["sortBy"]>("Relevance");
+
   // 7. Dùng dynamicMaxPrice để khởi tạo state
   const [priceValues, setPriceValues] = useState([MIN_PRICE, dynamicMaxPrice]);
 
@@ -86,21 +89,16 @@ export default function FilterModal({
     }
   }, [isVisible, dynamicMaxPrice]);
 
-
   const handleApply = () => {
     onApply({
       sortBy: sortBy,
       priceRange: [priceValues[0], priceValues[1]],
-      size: null, 
+      size: null,
     });
     onClose();
   };
 
-  const SortButton = ({
-    title,
-  }: {
-    title: FilterOptions["sortBy"];
-  }) => (
+  const SortButton = ({ title }: { title: FilterOptions["sortBy"] }) => (
     <TouchableOpacity
       style={[styles.sortButton, sortBy === title && styles.sortButtonActive]}
       onPress={() => setSortBy(title)}
@@ -139,6 +137,8 @@ export default function FilterModal({
           <Text style={styles.filterSectionTitle}>Sort By</Text>
           <View style={styles.sortRow}>
             <SortButton title="Relevance" />
+            <SortButton title="Newest" />
+            <SortButton title="Oldest" />
             <SortButton title="Price: Low - High" />
             <SortButton title="Price: High - Low" />
           </View>
@@ -147,10 +147,11 @@ export default function FilterModal({
           <View style={styles.priceHeader}>
             <Text style={styles.filterSectionTitle}>Price</Text>
             <Text style={styles.priceRangeText}>
-              {priceValues[0].toLocaleString("vi-VN")} - {priceValues[1].toLocaleString("vi-VN")} VND
+              {priceValues[0].toLocaleString("vi-VN")} -{" "}
+              {priceValues[1].toLocaleString("vi-VN")} VND
             </Text>
           </View>
-          
+
           {/* MultiSlider Component */}
           <View style={styles.sliderContainer}>
             <MultiSlider
@@ -158,10 +159,9 @@ export default function FilterModal({
               onValuesChange={(values) => setPriceValues(values)}
               min={MIN_PRICE}
               max={dynamicMaxPrice} // 9. Dùng max động
-              step={1000} 
-              minMarkerOverlapDistance={0} 
+              step={1000}
+              minMarkerOverlapDistance={0}
               allowOverlap={false}
-              
               trackStyle={styles.sliderTrack}
               selectedStyle={styles.sliderSelected}
               markerStyle={styles.sliderMarker}
@@ -262,18 +262,18 @@ const styles = StyleSheet.create({
   },
   sliderTrack: {
     height: 3,
-    backgroundColor: '#ddd',
+    backgroundColor: "#ddd",
   },
   sliderSelected: {
-    backgroundColor: '#000',
+    backgroundColor: "#000",
   },
   sliderMarker: {
     height: 20,
     width: 20,
     borderRadius: 10,
-    backgroundColor: '#000',
+    backgroundColor: "#000",
     borderWidth: 2,
-    borderColor: '#fff',
+    borderColor: "#fff",
     elevation: 2,
     shadowColor: "#000",
     shadowOpacity: 0.1,

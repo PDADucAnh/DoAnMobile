@@ -1,32 +1,28 @@
-import React, { useState } from "react"; // 1. Thêm useState
+import React, { useState } from "react"; 
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Modal, // 2. Thêm Modal
+  Modal, 
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useRouter } from "expo-router";
 import GeminiAssistant from "../../components/GeminiAssistant"; 
-import AsyncStorage from "@react-native-async-storage/async-storage"; // 3. Thêm AsyncStorage
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// ... (danh sách accountOptions giữ nguyên)
+// ... (danh sách accountOptions)
 const accountOptions = [
   { id: "1", title: "My Orders", icon: "cube-outline", route: "/order" }, 
-  { id: "2", title: "My Details", icon: "person-outline", route: "/details" },
+  { id: "2", title: "My Details", icon: "person-outline", route: "/placeholder" },
   { id: "3", title: "Address Book", icon: "home-outline", route: "/address" },
-  { id: "4", title: "Payment Methods", icon: "card-outline", route: "/payment" },
+  { id: "4", title: "Payment Methods", icon: "card-outline", route: "/placeholder" },
   { id: "8", title: "Change Password", icon: "lock-closed-outline", route: "/change-password"},
-  { id: "5", title: "Notifications", icon: "notifications-outline", route: "/notifications" },
-  { id: "6", title: "FAQs", icon: "help-circle-outline", route: "/faqs" },
-  { id: "7", title: "Help Center", icon: "headset-outline", route: "/help" },
+  { id: "5", title: "Notifications", icon: "notifications-outline", route: "/placeholder" },
+  { id: "6", title: "FAQs", icon: "help-circle-outline", route: "/placeholder" },
+  { id: "7", title: "Help Center", icon: "headset-outline", route: "/placeholder" },
 ];
-
-// =============================================
-// BẮT ĐẦU SỬA: Thêm kiểu dữ liệu cho Props
-// =============================================
 
 // 1. Định nghĩa kiểu dữ liệu cho props của Modal
 type LogoutModalProps = {
@@ -58,10 +54,6 @@ const LogoutModal = ({ visible, onLogout, onCancel }: LogoutModalProps) => {
     </Modal>
   );
 };
-// =============================================
-// KẾT THÚC SỬA
-// =============================================
-
 
 export default function AccountScreen() {
   const router = useRouter();
@@ -166,9 +158,6 @@ const styles = StyleSheet.create({
   rowLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
   rowText: { fontSize: 15, fontWeight: "500" },
 
-  // =============================================
-  // 8. THÊM STYLES CHO MODAL
-  // =============================================
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",

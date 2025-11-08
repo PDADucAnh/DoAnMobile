@@ -1,7 +1,4 @@
 import React, { useState, useEffect } from "react";
-// ... (các import khác giữ nguyên)
-// ... (Interface Product và RECENT_SEARCHES giữ nguyên)
-// ...
 import {
   View,
   Text,
@@ -38,6 +35,23 @@ const RECENT_SEARCHES = [
   "V-neck tshirt",
 ];
 
+// ===================================
+// BẮT ĐẦU SỬA LỖI TÌM KIẾM
+// ===================================
+
+/**
+ * Hàm xóa dấu (diacritics) khỏi chuỗi tiếng Việt.
+ * Ví dụ: "Quần Jeans" -> "Quan Jeans"
+ */
+function removeAccents(str: string): string {
+  if (!str) return "";
+  return str
+    .toLowerCase() // 1. Chuyển về chữ thường
+    .normalize("NFD") // 2. Tách dấu ra
+    .replace(/[\u0300-\u036f]/g, "") // 3. Xóa các ký tự dấu
+    .replace(/đ/g, "d"); // 4. Chuyển đổi 'đ' thành 'd'
+}
+
 export default function SearchScreen() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
@@ -56,17 +70,38 @@ export default function SearchScreen() {
     const fetchSearch = async () => {
       setLoading(true);
       try {
-       
-        const res = await GET_ALL("public/products?pageNumber=0&pageSize=50");
-        const allProducts = res.data.content || [];
-        
-        let filtered = allProducts.filter((p: Product) =>
-          (p.productName || "").toLowerCase().includes(searchQuery.toLowerCase())
-        );
 
+            // 1. Xây dựng query sắp xếp
+        let sortQuery = "&sortBy=productId&sortOrder=asc"; // Mặc định (Oldest/Relevance)
+        if (appliedFilters) {
+          if (appliedFilters.sortBy === "Price: Low - High") {
+            sortQuery = "&sortBy=price&sortOrder=asc";
+          } else if (appliedFilters.sortBy === "Price: High - Low") {
+            sortQuery = "&sortBy=price&sortOrder=desc";
+          } else if (appliedFilters.sortBy === "Newest") {
+            sortQuery = "&sortBy=productId&sortOrder=desc"; // Mới nhất
+          }
+        }
+
+        // 2. Gọi API (vẫn là API /products vì bạn không có API /search)
+        const res = await GET_ALL(`public/products?pageNumber=0&pageSize=50${sortQuery}`);
+        const allProducts = res.data.content || [];
+
+        
+        // 3. Chuẩn hóa chuỗi tìm kiếm (bỏ dấu 1 lần)
+        const normalizedQuery = removeAccents(searchQuery);
+
+        let filtered = allProducts.filter((p: Product) => {
+          // 4. Chuẩn hóa tên sản phẩm (bỏ dấu)
+          const normalizedProductName = removeAccents(p.productName || "");
+          
+          // 5. So sánh 2 chuỗi đã bỏ dấu
+          return normalizedProductName.includes(normalizedQuery);
+        });
+        
         // Lọc theo giá (nếu có)
         if (appliedFilters) {
-          filtered = filtered.filter((p: Product) => {
+          filtered = filtered.filter((p: Product) => { 
             const price = p.specialPrice ?? p.price;
             return price >= appliedFilters.priceRange[0] && price <= appliedFilters.priceRange[1];
           });
@@ -85,11 +120,11 @@ export default function SearchScreen() {
     fetchSearch();
   }, [searchQuery, appliedFilters]); 
 
+
   const handleApplyFilters = (filters: FilterOptions) => {
     setAppliedFilters(filters);
   };
 
-  // ... (renderRecentSearch, renderNoResults, renderResults giữ nguyên)
   // Render các mục tìm kiếm gần đây (Ảnh 3)
   const renderRecentSearch = () => (
     <View style={styles.sectionContainer}>
@@ -144,19 +179,14 @@ export default function SearchScreen() {
     />
   );
 
-
   return (
     <View style={styles.container}>
-      {/* ===================================
-      SỬA LỖI 1: Thêm prop 'products'
-      =================================== */}
       <FilterModal
         isVisible={isFilterModalVisible}
         onClose={() => setFilterModalVisible(false)}
         onApply={handleApplyFilters}
         products={results} // Truyền 'results' vào
       />
-      {/* =================================== */}
       
       {/* Header */}
       <View style={styles.header}>

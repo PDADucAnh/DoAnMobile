@@ -26,11 +26,8 @@ export default function CartScreen() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
   //=========================fix load cart=============================
-// FILE: (cart)/index.tsx (Của BẠN)
 
-// ... (các import và state)
-
-// [THÊM MỚI] Hàm trợ giúp để tìm số lượng đúng
+// Hàm trợ giúp để tìm số lượng đúng
 function getCorrectQuantity(item: any): number {
   // 1. Ưu tiên "cartQuantity" (nếu backend có trả)
   if (typeof item.cartQuantity === "number" && item.cartQuantity > 0) {
@@ -53,10 +50,6 @@ function getCorrectQuantity(item: any): number {
   return 1;
 }
 
-// =========================================================
-// BẮT ĐẦU THAY ĐỔI THỨ TỰ
-// =========================================================
-
 // BƯỚC 1: ĐỊNH NGHĨA loadCartFromApi
 const loadCartFromApi = useCallback(async () => {
   try {
@@ -69,12 +62,9 @@ const loadCartFromApi = useCallback(async () => {
 
       const response = await GET_CART(storedEmail, storedCartId);
 
-      // SỬA LỖI SAI GIÁ VÀ MAX QUANTITY
       const products = (response.data.products || []).map((p: any) => ({
         ...p,
-        // Ưu tiên specialPrice (132000), nếu không có thì dùng price (150000)
         price: p.specialPrice ?? p.price,
-        // Sửa lỗi Max Quantity
         quantity: getCorrectQuantity(p),
       }));
 
@@ -95,11 +85,7 @@ useFocusEffect(
 );
 
   //======================================fix increase, decrease, remove item=========================
-  // FILE: (cart)/index.tsx (PHẦN LOGIC ĐÃ SỬA)
-
-  // ... (giữ nguyên phần import và state)
-
-  // [SỬA] Tăng số lượng
+  //  Tăng số lượng
   const increaseQty = async (productId: number) => {
     if (!cartId) return;
 
@@ -132,7 +118,7 @@ useFocusEffect(
     }
   };
 
-  // [SỬA] Giảm số lượng
+  // Giảm số lượng
   const decreaseQty = async (productId: number) => {
     if (!cartId) return;
 
@@ -191,8 +177,6 @@ useFocusEffect(
     }
   };
 
-  // ... (giữ nguyên phần render, nhưng cập nhật lại hàm onPress)
-  //==================================================================================================
   const subtotal = cart.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0

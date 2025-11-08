@@ -1,5 +1,3 @@
-// app/index.tsx
-
 import { View, Text, StyleSheet, Image, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 

@@ -15,8 +15,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { GET_USER_ORDERS, GET_IMG } from "../../APIService";
 
 // ... (Interface ApiProduct, ApiOrderItem, ApiOrderDTO giữ nguyên)
-
-// Đây là kiểu dữ liệu MÀ CHÚNG TA MUỐN (dùng snake_case cho component)
 interface OrderItem {
   order_item_id: number;
   quantity: number;
